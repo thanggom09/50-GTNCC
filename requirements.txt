@@ -1,9 +1,9 @@
 streamlit
-torch
-torchvision
-gdown
-numpy
-Pillow
 streamlit-option-menu
 streamlit-webrtc
+torch
+torchvision
+numpy
+Pillow
 opencv-python-headless
+gdown
