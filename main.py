@@ -10,26 +10,32 @@ import cv2
 from datetime import datetime
 from streamlit_option_menu import option_menu
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+import gdown
 
 # ================================
-# 1. LOAD MODEL PYTORCH (.pth)
+# 1. DOWNLOAD & LOAD MODEL PYTORCH (.pth)
 # ================================
+MODEL_PATH = "resnet50_rice_leaf.pth"
+MODEL_URL = "https://drive.google.com/uc?id=1FrF_teTUh3lzb0mlwduwRU6pq4t4S6Lp"
 
-model_path = "resnet50_rice_leaf.pth"
+# Download nếu chưa có
+os.makedirs("model", exist_ok=True)
+if not os.path.exists(MODEL_PATH):
+    st.info("Đang tải model từ Google Drive...")
+    gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
 
-# 🔥 KHỞI TẠO MÔ HÌNH (THAY BẰNG MÔ HÌNH BẠN HUẤN LUYỆN)
-# Ví dụ: ResNet18 – nếu bạn dùng ResNet50 thì đổi thành resnet50
-from torchvision.models import resnet18
+# Load model
+from torchvision.models import resnet18  # hoặc resnet50 nếu bạn huấn luyện bằng resnet50
 
 num_classes = 8
 model = resnet18(weights=None)
 model.fc = nn.Linear(model.fc.in_features, num_classes)
 
-if os.path.exists(model_path):
-    model.load_state_dict(torch.load(model_path, map_location="cpu"))
+try:
+    model.load_state_dict(torch.load(MODEL_PATH, map_location="cpu"))
     model.eval()
-else:
-    st.error("❌ Không tìm thấy model .pth!")
+except Exception as e:
+    st.error(f"❌ Lỗi khi load model: {e}")
 
 # ================================
 # 2. LABELS
@@ -46,7 +52,7 @@ disease_labels = [
 ]
 
 # ================================
-# 3. TIỀN XỬ LÝ ẢNH CHUẨN PYTORCH
+# 3. TIỀN XỬ LÝ ẢNH
 # ================================
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -56,11 +62,11 @@ transform = transforms.Compose([
 ])
 
 def preprocess_image(image):
-    tensor = transform(image).unsqueeze(0)  # shape: (1,3,224,224)
+    tensor = transform(image).unsqueeze(0)
     return tensor
 
 # ================================
-# 4. SAVE ẢNH THEO BỆNH
+# 4. LƯU ẢNH THEO BỆNH
 # ================================
 def save_image(image_data, disease_name):
     disease_folder = os.path.join("images", disease_name)
@@ -72,7 +78,7 @@ def save_image(image_data, disease_name):
     return image_path
 
 # ================================
-# CSS
+# 5. CSS (nếu có)
 # ================================
 css_path = os.path.join("assets", "style.css")
 if os.path.exists(css_path):
@@ -80,7 +86,7 @@ if os.path.exists(css_path):
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 # ================================
-# APP
+# 6. APP
 # ================================
 st.title("🌾 Phân Loại Bệnh Lá Lúa (PyTorch .pth)")
 
@@ -94,12 +100,11 @@ with st.sidebar:
     )
 
 # ================================
-# 5. TẢI ẢNH LÊN
+# TẢI ẢNH LÊN
 # ================================
 if option == "Tải lên ảnh":
     uploaded_image = st.file_uploader("Chọn ảnh lá lúa:", type=["jpg", "jpeg", "png"])
-
-    if uploaded_image is not None:
+    if uploaded_image:
         image = Image.open(uploaded_image).convert("RGB")
         st.image(image, caption="Ảnh đã tải lên", use_column_width=True)
 
@@ -119,7 +124,7 @@ if option == "Tải lên ảnh":
         save_image(uploaded_image.getvalue(), predicted_label)
 
 # ================================
-# 6. CHỤP ẢNH WEBCAM
+# CHỤP ẢNH WEBCAM
 # ================================
 elif option == "Chụp ảnh":
 
