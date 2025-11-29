@@ -1,0 +1,147 @@
+import streamlit as st
+import numpy as np
+import torch
+import torch.nn as nn
+from torchvision import transforms
+from PIL import Image
+import os
+import io
+import cv2
+from datetime import datetime
+from streamlit_option_menu import option_menu
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
+
+# ================================
+# 1. LOAD MODEL PYTORCH (.pth)
+# ================================
+
+model_path = "resnet50_rice_leaf.pth"
+
+# 🔥 KHỞI TẠO MÔ HÌNH (THAY BẰNG MÔ HÌNH BẠN HUẤN LUYỆN)
+# Ví dụ: ResNet18 – nếu bạn dùng ResNet50 thì đổi thành resnet50
+from torchvision.models import resnet18
+
+num_classes = 8
+model = resnet18(weights=None)
+model.fc = nn.Linear(model.fc.in_features, num_classes)
+
+if os.path.exists(model_path):
+    model.load_state_dict(torch.load(model_path, map_location="cpu"))
+    model.eval()
+else:
+    st.error("❌ Không tìm thấy model .pth!")
+
+# ================================
+# 2. LABELS
+# ================================
+disease_labels = [
+    "Bacterial Leaf Blight",
+    "Brown Spot",
+    "Healthy Rice Leaf",
+    "Leaf Blast",
+    "Leaf Scald",
+    "Narrow Brown Leaf Spot",
+    "Rice Hispa",
+    "Sheath Blight"
+]
+
+# ================================
+# 3. TIỀN XỬ LÝ ẢNH CHUẨN PYTORCH
+# ================================
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                         std=[0.229, 0.224, 0.225])
+])
+
+def preprocess_image(image):
+    tensor = transform(image).unsqueeze(0)  # shape: (1,3,224,224)
+    return tensor
+
+# ================================
+# 4. SAVE ẢNH THEO BỆNH
+# ================================
+def save_image(image_data, disease_name):
+    disease_folder = os.path.join("images", disease_name)
+    os.makedirs(disease_folder, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    image_path = os.path.join(disease_folder, f"{timestamp}.jpg")
+    image = Image.open(io.BytesIO(image_data))
+    image.save(image_path)
+    return image_path
+
+# ================================
+# CSS
+# ================================
+css_path = os.path.join("assets", "style.css")
+if os.path.exists(css_path):
+    with open(css_path) as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
+# ================================
+# APP
+# ================================
+st.title("🌾 Phân Loại Bệnh Lá Lúa (PyTorch .pth)")
+
+with st.sidebar:
+    option = option_menu(
+        "MENU",
+        ["Tải lên ảnh", "Chụp ảnh"],
+        icons=["upload", "camera"],
+        menu_icon="cast",
+        default_index=0,
+    )
+
+# ================================
+# 5. TẢI ẢNH LÊN
+# ================================
+if option == "Tải lên ảnh":
+    uploaded_image = st.file_uploader("Chọn ảnh lá lúa:", type=["jpg", "jpeg", "png"])
+
+    if uploaded_image is not None:
+        image = Image.open(uploaded_image).convert("RGB")
+        st.image(image, caption="Ảnh đã tải lên", use_column_width=True)
+
+        # Predict
+        img_tensor = preprocess_image(image)
+        with torch.no_grad():
+            outputs = model(img_tensor)
+            probs = torch.softmax(outputs, dim=1)[0].numpy()
+
+        # Show result
+        st.write("### 🔍 Kết quả dự đoán:")
+        for idx, p in sorted(list(enumerate(probs)), key=lambda x: x[1], reverse=True):
+            st.write(f"{disease_labels[idx]}: **{p*100:.2f}%**")
+
+        # Save image
+        predicted_label = disease_labels[np.argmax(probs)]
+        save_image(uploaded_image.getvalue(), predicted_label)
+
+# ================================
+# 6. CHỤP ẢNH WEBCAM
+# ================================
+elif option == "Chụp ảnh":
+
+    class VideoTransformer(VideoTransformerBase):
+        def transform(self, frame):
+            img = frame.to_ndarray(format="bgr24")
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            pil_img = Image.fromarray(img_rgb)
+
+            # Predict
+            img_tensor = preprocess_image(pil_img)
+            with torch.no_grad():
+                outputs = model(img_tensor)
+                probs = torch.softmax(outputs, dim=1)[0].numpy()
+
+            label = disease_labels[np.argmax(probs)]
+
+            # Draw label
+            cv2.putText(img, f"{label}", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1,
+                        (255, 0, 0), 2)
+
+            return img
+
+    webrtc_streamer(key="webcam", video_transformer_factory=VideoTransformer)
