@@ -24,8 +24,9 @@ models_info = {
     "ViT": {
         "path": "ViT_rice_leaf.pth",
         "url": "https://drive.google.com/uc?id=1hVFE1nXSyn61fXoGug5yHEPyZEryO8KA",
-        "constructor": lambda: __import__('torchvision.models').models.vit_b_32(weights=None)
+        "constructor": lambda: __import__('torchvision.models').models.vit_b_16(weights=None)
     }
+
 }
 
 num_classes = 8
