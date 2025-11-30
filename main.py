@@ -60,7 +60,7 @@ try:
     if selected_model_name.startswith("ResNet"):
         model.fc = nn.Linear(model.fc.in_features, num_classes)
     else:  # ViT
-        model.heads.head = nn.Linear(model.heads.head.in_features, num_classes)
+        model.heads = nn.Linear(model.heads.in_features, num_classes)
 
     model.load_state_dict(torch.load(model_info["path"], map_location="cpu"))
     model.eval()
