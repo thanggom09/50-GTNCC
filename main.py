@@ -22,8 +22,8 @@ models_info = {
         "constructor": lambda: __import__('torchvision.models').models.resnet50(weights=None)
     },
     "ViT": {
-        "path": "vit_b16_rice_leaf.pth",
-        "url": "https://drive.google.com/file/d/11ANCGb9IG3RdHzpgXy9B8BAB4ZMjWKK2",
+        "path": "ViT_rice_leaf.pth",
+        "url": "https://drive.google.com/uc?id=1hVFE1nXSyn61fXoGug5yHEPyZEryO8KA",
         "constructor": lambda: __import__('torchvision.models').models.vit_b_16(weights=None)
     }
 }
