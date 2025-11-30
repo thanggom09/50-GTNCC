@@ -22,7 +22,7 @@ models_info = {
         "constructor": lambda: __import__('torchvision.models').models.resnet50(weights=None)
     },
     "ViT": {
-        "path": "ViT_rice_leaf.pth",
+        "path": "vit_b16_rice_leaf.pth",
         "url": "https://drive.google.com/uc?id=11ANCGb9IG3RdHzpgXy9B8BAB4ZMjWKK2",
         "constructor": lambda: __import__('torchvision.models').models.vit_b_16(weights=None)
     }
@@ -47,29 +47,34 @@ st.sidebar.title("Chọn Model")
 selected_model_name = st.sidebar.selectbox("Model dùng để dự đoán:", list(models_info.keys()))
 model_info = models_info[selected_model_name]
 
-# Tải model nếu chưa có
+# Tạo thư mục lưu model
 os.makedirs("model", exist_ok=True)
 if not os.path.exists(model_info["path"]):
     st.info(f"Đang tải {selected_model_name} từ Google Drive...")
     gdown.download(model_info["url"], model_info["path"], quiet=False)
 
-# Khởi tạo model
+# ================================
+# 3. KHỞI TẠO MODEL & LOAD CHECKPOINT
+# ================================
 try:
     model = model_info["constructor"]()
+    
     if selected_model_name.startswith("ResNet"):
         model.fc = nn.Linear(model.fc.in_features, num_classes)
     else:  # ViT
         in_features = model.heads.head.in_features
         model.heads = nn.Linear(in_features, num_classes)
 
-    state = torch.load(model_info["path"], map_location="cpu")
-    model.load_state_dict(state)
+    # Load checkpoint custom
+    checkpoint = torch.load(model_info["path"], map_location="cpu")
+    state_dict = checkpoint.get("model_state", checkpoint)
+    model.load_state_dict(state_dict)
     model.eval()
 except Exception as e:
     st.error(f"❌ Lỗi khi load model: {e}")
 
 # ================================
-# 3. TIỀN XỬ LÝ ẢNH CHUNG
+# 4. TIỀN XỬ LÝ ẢNH CHUNG
 # ================================
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -82,7 +87,7 @@ def preprocess_image(image):
     return transform(image).unsqueeze(0)
 
 # ================================
-# 4. SAVE ẢNH THEO BỆNH
+# 5. SAVE ẢNH THEO BỆNH
 # ================================
 def save_image(image_data, disease_name):
     disease_folder = os.path.join("images", disease_name)
@@ -94,7 +99,7 @@ def save_image(image_data, disease_name):
     return image_path
 
 # ================================
-# 5. CSS
+# 6. CSS TUỲ CHỌN
 # ================================
 css_path = os.path.join("assets", "style.css")
 if os.path.exists(css_path):
@@ -102,7 +107,7 @@ if os.path.exists(css_path):
         st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 # ================================
-# 6. GIAO DIỆN STREAMLIT
+# 7. GIAO DIỆN STREAMLIT
 # ================================
 st.title("🌾 Phân Loại Bệnh Lá Lúa (PyTorch)")
 
@@ -116,7 +121,7 @@ with st.sidebar:
     )
 
 # ================================
-# TẢI ẢNH LÊN
+# 8. TẢI ẢNH LÊN
 # ================================
 if option == "Tải lên ảnh":
     uploaded_image = st.file_uploader("Chọn ảnh lá lúa:", type=["jpg","jpeg","png"])
@@ -140,7 +145,7 @@ if option == "Tải lên ảnh":
         save_image(uploaded_image.getvalue(), predicted_label)
 
 # ================================
-# CHỤP ẢNH WEBCAM
+# 9. CHỤP ẢNH WEBCAM
 # ================================
 elif option == "Chụp ảnh":
 
