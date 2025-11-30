@@ -26,7 +26,6 @@ models_info = {
         "url": "https://drive.google.com/uc?id=11ANCGb9IG3RdHzpgXy9B8BAB4ZMjWKK2",
         "constructor": lambda: __import__('torchvision.models').models.vit_b_16(weights=None)
     }
-
 }
 
 num_classes = 8
@@ -54,20 +53,16 @@ if not os.path.exists(model_info["path"]):
     st.info(f"Đang tải {selected_model_name} từ Google Drive...")
     gdown.download(model_info["url"], model_info["path"], quiet=False)
 
-# Thiết bị
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 # Khởi tạo model
 try:
-    model = model_info["constructor"]().to(device)
+    model = model_info["constructor"]()
     if selected_model_name.startswith("ResNet"):
         model.fc = nn.Linear(model.fc.in_features, num_classes)
     else:  # ViT
         in_features = model.heads.head.in_features
-        model.heads.head = nn.Linear(in_features, num_classes)
-    
-    # Load state_dict
-    state = torch.load(model_info["path"], map_location=device)
+        model.heads = nn.Linear(in_features, num_classes)
+
+    state = torch.load(model_info["path"], map_location="cpu")
     model.load_state_dict(state)
     model.eval()
 except Exception as e:
@@ -84,7 +79,7 @@ transform = transforms.Compose([
 ])
 
 def preprocess_image(image):
-    return transform(image).unsqueeze(0).to(device)
+    return transform(image).unsqueeze(0)
 
 # ================================
 # 4. SAVE ẢNH THEO BỆNH
@@ -133,7 +128,7 @@ if option == "Tải lên ảnh":
         img_tensor = preprocess_image(image)
         with torch.no_grad():
             outputs = model(img_tensor)
-            probs = torch.softmax(outputs, dim=1)[0].cpu().numpy()
+            probs = torch.softmax(outputs, dim=1)[0].numpy()
 
         # Show result
         st.write("### 🔍 Kết quả dự đoán:")
@@ -159,7 +154,7 @@ elif option == "Chụp ảnh":
             img_tensor = preprocess_image(pil_img)
             with torch.no_grad():
                 outputs = model(img_tensor)
-                probs = torch.softmax(outputs, dim=1)[0].cpu().numpy()
+                probs = torch.softmax(outputs, dim=1)[0].numpy()
 
             label = disease_labels[np.argmax(probs)]
 
