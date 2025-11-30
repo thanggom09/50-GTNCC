@@ -60,10 +60,12 @@ try:
     if selected_model_name.startswith("ResNet"):
         model.fc = nn.Linear(model.fc.in_features, num_classes)
     else:  # ViT
-        model.heads = nn.Linear(model.heads.in_features, num_classes)
+        in_features = model.heads[1].in_features
+        model.heads = nn.Linear(in_features, num_classes)
 
-    model.load_state_dict(torch.load(model_info["path"], map_location="cpu"))
-    model.eval()
+    state = torch.load(model_info["path"], map_location="cpu")
+    model.load_state_dict(state)
+    model.eval(
 except Exception as e:
     st.error(f"❌ Lỗi khi load model: {e}")
 
