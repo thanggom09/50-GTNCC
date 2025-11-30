@@ -15,6 +15,18 @@ import gdown
 # ================================
 # 1. CÀI ĐẶT THÔNG SỐ MODEL
 # ================================
+num_classes = 8
+disease_labels = [
+    "Bacterial Leaf Blight",
+    "Brown Spot",
+    "Healthy Rice Leaf",
+    "Leaf Blast",
+    "Leaf Scald",
+    "Narrow Brown Leaf Spot",
+    "Rice Hispa",
+    "Sheath Blight"
+]
+
 models_info = {
     "ResNet50": {
         "path": "resnet50_rice_leaf.pth",
@@ -28,18 +40,6 @@ models_info = {
     }
 }
 
-num_classes = 8
-disease_labels = [
-    "Bacterial Leaf Blight",
-    "Brown Spot",
-    "Healthy Rice Leaf",
-    "Leaf Blast",
-    "Leaf Scald",
-    "Narrow Brown Leaf Spot",
-    "Rice Hispa",
-    "Sheath Blight"
-]
-
 # ================================
 # 2. CHỌN MODEL TRONG APP
 # ================================
@@ -47,34 +47,44 @@ st.sidebar.title("Chọn Model")
 selected_model_name = st.sidebar.selectbox("Model dùng để dự đoán:", list(models_info.keys()))
 model_info = models_info[selected_model_name]
 
-# Tạo thư mục lưu model
+# Tải model nếu chưa có
 os.makedirs("model", exist_ok=True)
 if not os.path.exists(model_info["path"]):
     st.info(f"Đang tải {selected_model_name} từ Google Drive...")
     gdown.download(model_info["url"], model_info["path"], quiet=False)
 
-# ================================
-# 3. KHỞI TẠO MODEL & LOAD CHECKPOINT
-# ================================
+# Khởi tạo model
 try:
     model = model_info["constructor"]()
-    
     if selected_model_name.startswith("ResNet"):
         model.fc = nn.Linear(model.fc.in_features, num_classes)
     else:  # ViT
+        # fix ViT head
         in_features = model.heads.head.in_features
         model.heads = nn.Linear(in_features, num_classes)
 
-    # Load checkpoint custom
+    # Load checkpoint
     checkpoint = torch.load(model_info["path"], map_location="cpu")
     state_dict = checkpoint.get("model_state", checkpoint)
+
+    # Rename keys nếu là ViT
+    if selected_model_name == "ViT":
+        new_state_dict = {}
+        for k, v in state_dict.items():
+            if k.startswith("heads.head."):
+                new_k = k.replace("heads.head.", "heads.")
+                new_state_dict[new_k] = v
+            else:
+                new_state_dict[k] = v
+        state_dict = new_state_dict
+
     model.load_state_dict(state_dict)
     model.eval()
 except Exception as e:
     st.error(f"❌ Lỗi khi load model: {e}")
 
 # ================================
-# 4. TIỀN XỬ LÝ ẢNH CHUNG
+# 3. TIỀN XỬ LÝ ẢNH
 # ================================
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
@@ -87,7 +97,7 @@ def preprocess_image(image):
     return transform(image).unsqueeze(0)
 
 # ================================
-# 5. SAVE ẢNH THEO BỆNH
+# 4. SAVE ẢNH THEO BỆNH
 # ================================
 def save_image(image_data, disease_name):
     disease_folder = os.path.join("images", disease_name)
@@ -99,15 +109,7 @@ def save_image(image_data, disease_name):
     return image_path
 
 # ================================
-# 6. CSS TUỲ CHỌN
-# ================================
-css_path = os.path.join("assets", "style.css")
-if os.path.exists(css_path):
-    with open(css_path) as f:
-        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
-
-# ================================
-# 7. GIAO DIỆN STREAMLIT
+# 5. GIAO DIỆN STREAMLIT
 # ================================
 st.title("🌾 Phân Loại Bệnh Lá Lúa (PyTorch)")
 
@@ -121,7 +123,7 @@ with st.sidebar:
     )
 
 # ================================
-# 8. TẢI ẢNH LÊN
+# 6. TẢI ẢNH LÊN
 # ================================
 if option == "Tải lên ảnh":
     uploaded_image = st.file_uploader("Chọn ảnh lá lúa:", type=["jpg","jpeg","png"])
@@ -145,7 +147,7 @@ if option == "Tải lên ảnh":
         save_image(uploaded_image.getvalue(), predicted_label)
 
 # ================================
-# 9. CHỤP ẢNH WEBCAM
+# 7. CHỤP ẢNH WEBCAM
 # ================================
 elif option == "Chụp ảnh":
 
