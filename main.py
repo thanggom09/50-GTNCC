@@ -65,7 +65,7 @@ try:
 
     state = torch.load(model_info["path"], map_location="cpu")
     model.load_state_dict(state)
-    model.eval(
+    model.eval()
 except Exception as e:
     st.error(f"❌ Lỗi khi load model: {e}")
 
